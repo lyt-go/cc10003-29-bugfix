@@ -1,0 +1,4 @@
+# 验收测试依赖：运行 pytest tests/ 前安装
+-r requirements.txt
+httpx>=0.27
+pytest>=8.0

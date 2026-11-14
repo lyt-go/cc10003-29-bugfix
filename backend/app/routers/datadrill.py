@@ -6,11 +6,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
-from app.services.datadrill import DatadrillService
+from app.services.datadrill import datadrill_service
 
 router = APIRouter(prefix="/api/datadrill", tags=["多维下钻"])
-
-service = DatadrillService()
 
 LIST_FIELDS = ["路径编号", "起始维度", "下钻层级", "每层维度名", "每层度量", "路径深度", "默认展开层", "关联看板"]
 STATUSES = ["草稿", "路径评审中", "已启用", "已关闭"]
@@ -26,14 +24,14 @@ def list_entries(
     """按路径编号与状态过滤多维下钻列表；没有数据时返回空页，不报错。"""
     if size > 200:
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
-    items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
+    items, total = datadrill_service.list_entries(keyword=keyword, status=status, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
 
 
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条下钻路径明细；不存在时给出可读的错误说明。"""
-    entry = service.get_entry(entry_id)
+    entry = datadrill_service.get_entry(entry_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"下钻路径 {entry_id} 不存在或已归档")
     return entry
@@ -42,7 +40,7 @@ def get_entry(entry_id: int) -> dict:
 @router.post("", response_model=ActionResult)
 def create_entry(payload: EntryPayload) -> ActionResult:
     """登记一条下钻路径，缺字段时说明原因而不是静默丢弃。"""
-    entry, missing = service.create_entry(payload.values)
+    entry, missing = datadrill_service.create_entry(payload.values)
     if missing:
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
     return ActionResult(ok=True, message="下钻路径已登记", entry=entry)
@@ -52,14 +50,14 @@ def create_entry(payload: EntryPayload) -> ActionResult:
 def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     """对单条下钻路径执行提交路径评审、启用路径、关闭路径；不允许的动作会被拦下并说明原因。"""
     action = str(payload.values.get("action") or "").strip()
-    entry, message = service.run_action(entry_id, action)
+    entry, message, detail = datadrill_service.run_action(entry_id, action)
     if entry is None:
-        return ActionResult(ok=False, message=message)
-    return ActionResult(ok=True, message=message, entry=entry)
+        return ActionResult(ok=False, message=message, detail=detail)
+    return ActionResult(ok=True, message=message, entry=entry, detail=detail)
 
 
 @router.get("/export")
 def export_entries() -> dict[str, Any]:
     """导出多维下钻清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
+    items, total = datadrill_service.list_entries(page=1, size=10000)
     return {"module": "datadrill", "total": total, "items": items}

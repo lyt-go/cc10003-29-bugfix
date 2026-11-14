@@ -19,6 +19,8 @@ class ActionResult(BaseModel):
     ok: bool
     message: str
     entry: dict[str, Any] | None = None
+    # 状态机/发布门禁的结构化结论（版本标签、失效原因、门禁问题清单等）。
+    detail: dict[str, Any] | None = None
 
 
 class EntryPayload(BaseModel):
